@@ -81,7 +81,7 @@ interface DashboardData {
 }
 
 export default function Dashboard() {
-  const router = useRouter();
+  const _router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [currentDate, setCurrentDate] = useState('');
