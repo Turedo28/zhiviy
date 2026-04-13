@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import ScoreStrip from '@/components/dashboard/ScoreStrip';
 import NutritionCard from '@/components/dashboard/NutritionCard';
@@ -81,7 +81,6 @@ interface DashboardData {
 }
 
 export default function Dashboard() {
-  const _router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [currentDate, setCurrentDate] = useState('');
