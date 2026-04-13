@@ -6,29 +6,38 @@ import Label from '@/components/ui/Label';
 import ProgressBar from '@/components/ui/ProgressBar';
 
 interface SleepDetailData {
-  totalHours: number;
-  bedTime: string;
-  wakeTime: string;
-  quality: number;
-  consistency: number;
+  totalHours?: number;
+  hours?: number;
+  bedTime?: string;
+  wakeTime?: string;
+  quality?: number;
+  score?: number;
+  consistency?: number;
+  efficiency?: number;
   stages: {
     awake: number;
     light: number;
     deep: number;
     rem: number;
   };
-  notes: string;
+  notes?: string;
 }
 
 export default function SleepDetail({
   totalHours,
+  hours,
   bedTime,
   wakeTime,
   quality,
+  score,
   consistency,
+  efficiency,
   stages,
   notes,
 }: SleepDetailData) {
+  const displayHours = totalHours ?? hours ?? 0;
+  const displayQuality = quality ?? score ?? 0;
+  const displayConsistency = consistency ?? efficiency ?? 0;
   return (
     <Card>
       <div className="mb-6">
@@ -46,48 +55,50 @@ export default function SleepDetail({
         </div>
         <div className="glass-card-sm p-4 text-center">
           <p className="text-xs text-textDim mb-1">Якість</p>
-          <p className="text-xl font-bold text-green">{quality}%</p>
+          <p className="text-xl font-bold text-green">{displayQuality}%</p>
         </div>
         <div className="glass-card-sm p-4 text-center">
           <p className="text-xs text-textDim mb-1">Послідовність</p>
-          <p className="text-xl font-bold text-blue">{consistency}%</p>
+          <p className="text-xl font-bold text-blue">{displayConsistency}%</p>
         </div>
       </div>
 
       <div className="space-y-4 mb-6">
         <ProgressBar
           current={stages.deep}
-          target={totalHours}
+          target={displayHours}
           label="Глибокий сон"
           unit="ч"
           showPercentage={false}
         />
         <ProgressBar
           current={stages.rem}
-          target={totalHours}
+          target={displayHours}
           label="REM сон"
           unit="ч"
           showPercentage={false}
         />
         <ProgressBar
           current={stages.light}
-          target={totalHours}
+          target={displayHours}
           label="Легкий сон"
           unit="ч"
           showPercentage={false}
         />
         <ProgressBar
           current={stages.awake}
-          target={totalHours}
+          target={displayHours}
           label="Пробудження"
           unit="ч"
           showPercentage={false}
         />
       </div>
 
-      <div className="pt-6 border-t border-cardBorder">
-        <p className="text-sm text-textSec">{notes}</p>
-      </div>
+      {notes && (
+        <div className="pt-6 border-t border-cardBorder">
+          <p className="text-sm text-textSec">{notes}</p>
+        </div>
+      )}
     </Card>
   );
 }

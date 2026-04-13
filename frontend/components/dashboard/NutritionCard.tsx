@@ -13,7 +13,7 @@ interface NutritionData {
     carbs: { value: number; target: number; unit: string };
     fat: { value: number; target: number; unit: string };
   };
-  meals: Array<{ id: string; name: string; time: string; calories: number; items: string[] }>;
+  meals: Array<{ id: string; name: string; time: string; calories: number; items?: string[]; emoji?: string; protein?: number; carbs?: number; fat?: number }>;
 }
 
 export default function NutritionCard({ calories, macros, meals }: NutritionData) {

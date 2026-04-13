@@ -194,11 +194,12 @@ export default function Dashboard() {
             }
           : mockSleep.stages;
 
-        const recoveryLevel = dashData?.recovery?.level ?? mockRecovery.level;
+        const rawLevel = dashData?.recovery?.level;
+        const recoveryLevel: 'high' | 'medium' | 'low' = rawLevel === 'green' ? 'high' : rawLevel === 'yellow' ? 'medium' : rawLevel === 'red' ? 'low' : (mockRecovery.level as 'high' | 'medium' | 'low');
         const recoveryScoreVal = dashData?.recovery?.score ?? mockRecovery.score;
-        const recoveryRec = recoveryLevel === 'green'
+        const recoveryRec = recoveryLevel === 'high'
           ? 'Відмінне відновлення. Готові до навантажень!'
-          : recoveryLevel === 'yellow'
+          : recoveryLevel === 'medium'
           ? 'Помірне відновлення. Тренуйтесь з обережністю.'
           : 'Низьке відновлення. Рекомендований відпочинок.';
 
@@ -258,10 +259,12 @@ export default function Dashboard() {
       case 'Показники':
         const vitalsData = dashData?.recovery
           ? {
-              hrv: dashData.recovery.hrv ?? mockVitals.hrv,
-              restingHr: dashData.recovery.resting_hr ?? mockVitals.restingHr,
-              spo2: dashData.recovery.spo2 ?? mockVitals.spo2,
+              hrv: { value: dashData.recovery.hrv ?? mockVitals.hrv.value, unit: 'мс', trend: 'stable' as const },
+              restingHR: { value: dashData.recovery.resting_hr ?? mockVitals.restingHR.value, unit: 'уд/хв', trend: 'stable' as const },
+              spo2: { value: dashData.recovery.spo2 ?? mockVitals.spo2.value, unit: '%', trend: 'stable' as const },
               skinTemp: mockVitals.skinTemp,
+              maxHR: mockVitals.maxHR,
+              activeCal: mockVitals.activeCal,
             }
           : mockVitals;
 
@@ -279,11 +282,12 @@ export default function Dashboard() {
             }
           : mockSleepDetail;
 
-        const recLevel2 = dashData?.recovery?.level ?? mockRecovery.level;
+        const rawLevel2 = dashData?.recovery?.level;
+        const recLevel2: 'high' | 'medium' | 'low' = rawLevel2 === 'green' ? 'high' : rawLevel2 === 'yellow' ? 'medium' : rawLevel2 === 'red' ? 'low' : (mockRecovery.level as 'high' | 'medium' | 'low');
         const recScore2 = dashData?.recovery?.score ?? mockRecovery.score;
-        const recRec2 = recLevel2 === 'green'
+        const recRec2 = recLevel2 === 'high'
           ? 'Відмінне відновлення. Готові до навантажень!'
-          : recLevel2 === 'yellow'
+          : recLevel2 === 'medium'
           ? 'Помірне відновлення. Тренуйтесь з обережністю.'
           : 'Низьке відновлення. Рекомендований відпочинок.';
 

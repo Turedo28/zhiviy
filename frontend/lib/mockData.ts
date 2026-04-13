@@ -167,7 +167,7 @@ export const mockBodyMetrics = {
 };
 
 export const mockAverageMacros = {
-  protein: { average: 118, target: 160 },
-  carbs: { average: 195, target: 220 },
-  fat: { average: 62, target: 70 },
+  protein: 118,
+  carbs: 195,
+  fat: 62,
 };
