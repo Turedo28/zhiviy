@@ -1,0 +1,23 @@
+{
+  "welcome": "Welcome to HealthTrack! 👋\n\nI'll help you get the best health advice.",
+  "choose_language": "Choose language:",
+  "main_menu": "Main Menu",
+  "add_meal": "➕ Add Meal",
+  "statistics": "📊 Statistics",
+  "settings": "⚙️ Settings",
+  "add_meal_prompt": "Send me a photo of your meal",
+  "meal_details": "Meal Details",
+  "confirm": "✅ Confirm",
+  "edit": "✏️ Edit",
+  "cancel": "❌ Cancel",
+  "meal_added": "Meal added! ✅",
+  "daily_stats": "Your stats for today:",
+  "calories": "Calories",
+  "protein": "Protein",
+  "carbs": "Carbs",
+  "fats": "Fats",
+  "error": "An error occurred. Please try again later.",
+  "visit_website": "Visit the website for your full profile",
+  "water_logged": "Water logged! 💧",
+  "supplement_logged": "Supplement logged! 💊"
+}
