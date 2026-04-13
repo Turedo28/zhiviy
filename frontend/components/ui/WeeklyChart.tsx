@@ -23,8 +23,6 @@ export default function WeeklyChart({
   showValues = true,
 }: WeeklyChartProps) {
   const max = maxValue || Math.max(...data.map(d => d.value));
-  const barWidth = 100 / data.length / 1.2;
-  const barGap = (100 / data.length) * 0.2;
 
   return (
     <div className="w-full">
