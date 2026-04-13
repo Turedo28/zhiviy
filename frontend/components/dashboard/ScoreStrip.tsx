@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Card from '@/components/ui/Card';
-import CircleProgress from '@/components/ui/CircleProgress';
 import { getScoreColor } from '@/lib/utils';
 
 interface ScoreStripProps {
