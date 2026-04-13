@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # === Database ===
   postgres:
@@ -7,10 +5,6 @@ services:
     container_name: healthtrack_postgres
     restart: always
     env_file: .env.production
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-healthtrack}
-      POSTGRES_USER: ${POSTGRES_USER:-healthtrack}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -43,8 +37,8 @@ services:
     restart: always
     env_file: .env.production
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-healthtrack}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-healthtrack}
-      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-healthtrack}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-healthtrack}
+      DATABASE_URL: postgresql+asyncpg://healthtrack:${POSTGRES_PASSWORD}@postgres:5432/healthtrack
+      DATABASE_URL_SYNC: postgresql://healthtrack:${POSTGRES_PASSWORD}@postgres:5432/healthtrack
       REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
