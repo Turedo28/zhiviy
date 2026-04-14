@@ -13,7 +13,7 @@ export default function Features() {
     {
       icon: '⌚',
       title: 'WHOOP інтеграція',
-      description: 'Синхронізуй дані про сон, відновлення та напругу з твоїм носівним пристроєм',
+      description: 'Синхронізуй дані про сон, відновлення та навантаження з твоїм носимим пристроєм',
     },
     {
       icon: '📊',
@@ -23,7 +23,7 @@ export default function Features() {
     {
       icon: '💬',
       title: 'Telegram бот',
-      description: 'Отримуй щоденні звіти та напередодні тренування прямо в Telegram',
+      description: 'Отримуй щоденні звіти та поради щодо тренувань прямо в Telegram',
     },
   ];
 

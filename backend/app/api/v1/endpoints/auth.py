@@ -104,7 +104,7 @@ async def telegram_login(
     await db.refresh(user)
 
     # Create JWT token
-    access_token = create_access_token(data={"sub": user.id, "telegram_id": user.telegram_id})
+    access_token = create_access_token(data={"sub": str(user.id), "telegram_id": str(user.telegram_id)})
 
     return AuthTokenResponse(
         access_token=access_token,

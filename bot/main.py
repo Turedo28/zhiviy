@@ -6,14 +6,16 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import bot_config
 from bot.handlers import start, meals, stats
+from bot.services.sync_queue import retry_loop
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+RETRY_DELAY = 5  # seconds between retries
+
 
 async def main():
-    """Main bot entry point."""
-    # Initialize bot and dispatcher
+    """Main bot entry point with automatic restart on network errors."""
     bot = Bot(token=bot_config.TELEGRAM_BOT_TOKEN)
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
@@ -23,11 +25,25 @@ async def main():
     dp.include_router(meals.router)
     dp.include_router(stats.router)
 
-    try:
-        logger.info("Bot started polling...")
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
+    # Start background retry loop for failed meal syncs
+    asyncio.create_task(retry_loop())
+
+    retry_count = 0
+    while True:
+        try:
+            logger.info("Bot started polling...")
+            await dp.start_polling(bot)
+            break  # Normal shutdown
+        except Exception as e:
+            retry_count += 1
+            logger.error(f"Polling crashed (attempt {retry_count}): {e}")
+            logger.info(f"Restarting polling in {RETRY_DELAY}s...")
+            await asyncio.sleep(RETRY_DELAY)
+        finally:
+            try:
+                await bot.session.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

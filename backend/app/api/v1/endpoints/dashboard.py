@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.meal import Meal
 from app.models.whoop import WhoopSleep, WhoopRecovery, WhoopWorkout, WhoopToken
+from app.services.nutrition import get_nutrition_plan, calculate_age_from_dob
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -39,6 +40,26 @@ class NutritionSummary(BaseModel):
     meals: List[MealSummary]
 
 
+class NutritionRecommendation(BaseModel):
+    type: str
+    icon: str
+    text: str
+
+
+class NutritionPlan(BaseModel):
+    bmr: int
+    tdee: int
+    target_calories: int
+    protein_target: float
+    carbs_target: float
+    fats_target: float
+    goal: str
+    goal_label: str
+    calories_burned: float
+    day_strain: Optional[float]
+    recommendations: List[NutritionRecommendation]
+
+
 class SleepSummary(BaseModel):
     hours: float
     score: Optional[float]
@@ -64,6 +85,8 @@ class TodaySummary(BaseModel):
     sleep: Optional[SleepSummary]
     recovery: Optional[RecoverySummary]
     whoop_connected: bool
+    strain: Optional[float] = None
+    nutrition_plan: Optional[NutritionPlan] = None
 
 
 def _ms_to_hours(ms: Optional[int]) -> float:
@@ -82,6 +105,74 @@ def _recovery_level(score: Optional[float]) -> str:
     return "red"
 
 
+async def _get_nutrition_context(db: AsyncSession, user, today_start, today_end):
+    """
+    Shared helper: fetch latest day_strain, burned calories, and compute nutrition plan.
+    Returns (day_strain, calories_burned, nutrition_plan_dict, cal_target, macros).
+    """
+    day_strain = None
+    calories_burned = 0.0
+
+    # Latest recovery -> day_strain
+    stmt = (
+        select(WhoopRecovery)
+        .where(WhoopRecovery.user_id == user.id)
+        .order_by(WhoopRecovery.whoop_cycle_id.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    recovery = result.scalar_one_or_none()
+    if recovery and recovery.day_strain is not None:
+        day_strain = recovery.day_strain
+
+    # Today's burned calories from WHOOP workouts
+    stmt = select(func.sum(WhoopWorkout.calories)).where(
+        and_(
+            WhoopWorkout.user_id == user.id,
+            WhoopWorkout.start_time >= today_start,
+            WhoopWorkout.start_time <= today_end,
+        )
+    )
+    result = await db.execute(stmt)
+    burned = result.scalar()
+    if burned:
+        calories_burned = float(burned)
+
+    # Build nutrition plan if user profile is complete
+    n_plan = None
+    cal_target = 2100.0
+    macros = {"protein_g": 160, "carbs_g": 220, "fats_g": 70}
+
+    if user.weight_kg and user.height_cm and user.date_of_birth and user.gender:
+        plan = get_nutrition_plan(
+            weight_kg=user.weight_kg,
+            height_cm=user.height_cm,
+            date_of_birth=user.date_of_birth,
+            gender=user.gender,
+            activity_level=user.activity_level or "moderate",
+            goal=user.goal or "maintain",
+            day_strain=day_strain,
+            calories_burned=calories_burned,
+        )
+        cal_target = plan["target_calories"]
+        macros = plan["macros"]
+        n_plan = {
+            "bmr": plan["bmr"],
+            "tdee": plan["tdee"],
+            "target_calories": plan["target_calories"],
+            "protein_target": macros["protein_g"],
+            "carbs_target": macros["carbs_g"],
+            "fats_target": macros["fats_g"],
+            "goal": plan["goal"],
+            "goal_label": plan["goal_label"],
+            "calories_burned": plan["calories_burned"],
+            "day_strain": plan["day_strain"],
+            "recommendations": plan["recommendations"],
+        }
+
+    return day_strain, calories_burned, n_plan, cal_target, macros
+
+
 @router.get("/today/demo")
 async def get_today_summary_demo(
     telegram_id: int,
@@ -98,6 +189,7 @@ async def get_today_summary_demo(
     today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
     today_end = datetime.combine(today, datetime.max.time()).replace(tzinfo=timezone.utc)
 
+    # --- Meals ---
     stmt = (
         select(Meal)
         .where(and_(Meal.user_id == user.id, Meal.created_at >= today_start, Meal.created_at <= today_end))
@@ -125,6 +217,11 @@ async def get_today_summary_demo(
         }
         for m in meals_list
     ]
+
+    # --- Nutrition context (strain, burned calories, plan) ---
+    day_strain, calories_burned, n_plan, cal_target, macros = await _get_nutrition_context(
+        db, user, today_start, today_end
+    )
 
     # --- WHOOP connected? ---
     stmt = select(WhoopToken).where(WhoopToken.user_id == user.id)
@@ -168,7 +265,7 @@ async def get_today_summary_demo(
     stmt = (
         select(WhoopRecovery)
         .where(WhoopRecovery.user_id == user.id)
-        .order_by(WhoopRecovery.created_at.desc())
+        .order_by(WhoopRecovery.whoop_cycle_id.desc())
         .limit(1)
     )
     result = await db.execute(stmt)
@@ -188,18 +285,20 @@ async def get_today_summary_demo(
         "user_name": user.first_name or "Користувач",
         "nutrition": {
             "calories_consumed": total_cal,
-            "calories_target": 2100,
+            "calories_target": cal_target,
             "protein_g": total_protein,
-            "protein_target": 160,
+            "protein_target": macros["protein_g"],
             "carbs_g": total_carbs,
-            "carbs_target": 220,
+            "carbs_target": macros["carbs_g"],
             "fats_g": total_fats,
-            "fats_target": 70,
+            "fats_target": macros["fats_g"],
             "meals": meals_data,
         },
         "sleep": sleep_data,
         "recovery": recovery_data,
         "whoop_connected": whoop_connected,
+        "strain": day_strain,
+        "nutrition_plan": n_plan,
     }
 
 
@@ -231,24 +330,10 @@ async def get_today_summary(
     total_carbs = sum(m.carbs_g or 0 for m in meals)
     total_fats = sum(m.fats_g or 0 for m in meals)
 
-    # Calorie target based on user profile (Mifflin-St Jeor)
-    cal_target = 2100.0  # Default
-    if current_user.weight_kg and current_user.height_cm:
-        bmr = 10 * current_user.weight_kg + 6.25 * current_user.height_cm - 5 * 30  # assume age 30
-        if current_user.gender == "male":
-            bmr += 5
-        else:
-            bmr -= 161
-        activity_multipliers = {
-            "sedentary": 1.2, "light": 1.375, "moderate": 1.55,
-            "active": 1.725, "very_active": 1.9,
-        }
-        multiplier = activity_multipliers.get(current_user.activity_level or "moderate", 1.55)
-        cal_target = round(bmr * multiplier)
-
-    protein_target = round(current_user.weight_kg * 2) if current_user.weight_kg else 160
-    fats_target = round(cal_target * 0.25 / 9)
-    carbs_target = round((cal_target - protein_target * 4 - fats_target * 9) / 4)
+    # --- Nutrition context (strain, burned calories, plan) ---
+    day_strain, calories_burned, n_plan, cal_target, macros = await _get_nutrition_context(
+        db, current_user, today_start, today_end
+    )
 
     meal_summaries = [
         MealSummary(
@@ -269,11 +354,11 @@ async def get_today_summary(
         calories_consumed=total_cal,
         calories_target=cal_target,
         protein_g=total_protein,
-        protein_target=protein_target,
+        protein_target=macros["protein_g"],
         carbs_g=total_carbs,
-        carbs_target=carbs_target,
+        carbs_target=macros["carbs_g"],
         fats_g=total_fats,
-        fats_target=fats_target,
+        fats_target=macros["fats_g"],
         meals=meal_summaries,
     )
 
@@ -314,7 +399,7 @@ async def get_today_summary(
     stmt = (
         select(WhoopRecovery)
         .where(WhoopRecovery.user_id == current_user.id)
-        .order_by(WhoopRecovery.created_at.desc())
+        .order_by(WhoopRecovery.whoop_cycle_id.desc())
         .limit(1)
     )
     result = await db.execute(stmt)
@@ -330,7 +415,6 @@ async def get_today_summary(
         )
 
     # --- WHOOP connected? ---
-    from app.models.whoop import WhoopToken
     stmt = select(WhoopToken).where(WhoopToken.user_id == current_user.id)
     result = await db.execute(stmt)
     whoop_connected = result.scalar_one_or_none() is not None
@@ -342,4 +426,6 @@ async def get_today_summary(
         sleep=sleep_summary,
         recovery=recovery_summary,
         whoop_connected=whoop_connected,
+        strain=day_strain,
+        nutrition_plan=NutritionPlan(**n_plan) if n_plan else None,
     )

@@ -1,8 +1,23 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Card from '@/components/ui/Card';
 import Label from '@/components/ui/Label';
+
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      {children}
+      {show && (
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg bg-surface border border-border text-xs text-textSec max-w-[260px] text-center shadow-lg whitespace-normal">
+          {text}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-border" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface SleepData {
   hours: number;
@@ -34,14 +49,18 @@ export default function SleepCard({ hours, stages }: SleepData) {
 
   return (
     <Card>
-      <div className="mb-4">
-        <Label>Сон</Label>
-      </div>
+      <Tooltip text="Загальна тривалість сну за ніч з розподілом по фазах: глибокий сон відновлює тіло, REM — мозок, легкий — перехідна фаза. Рекомендовано 7–9 годин для дорослих.">
+        <div className="cursor-help">
+          <div className="mb-4">
+            <Label>Сон</Label>
+          </div>
 
-      <div className="text-center mb-6">
-        <div className="text-4xl font-bold text-text">{hours.toFixed(1)}</div>
-        <p className="text-sm text-textSec">годин сну</p>
-      </div>
+          <div className="text-center mb-6">
+            <div className="text-4xl font-bold text-text">{hours.toFixed(1)}</div>
+            <p className="text-sm text-textSec">годин сну</p>
+          </div>
+        </div>
+      </Tooltip>
 
       {/* Sleep stages bar */}
       <div className="flex gap-1 mb-4 h-6 bg-textMuted rounded-sm overflow-hidden bg-opacity-20">

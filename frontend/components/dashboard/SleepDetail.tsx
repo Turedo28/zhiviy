@@ -46,11 +46,11 @@ export default function SleepDetail({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="glass-card-sm p-4 text-center">
-          <p className="text-xs text-textDim mb-1">Було</p>
+          <p className="text-xs text-textDim mb-1">Засинання</p>
           <p className="text-xl font-bold text-accent">{bedTime}</p>
         </div>
         <div className="glass-card-sm p-4 text-center">
-          <p className="text-xs text-textDim mb-1">Прокинувся</p>
+          <p className="text-xs text-textDim mb-1">Підйом</p>
           <p className="text-xl font-bold text-accent">{wakeTime}</p>
         </div>
         <div className="glass-card-sm p-4 text-center">
@@ -58,7 +58,7 @@ export default function SleepDetail({
           <p className="text-xl font-bold text-green">{displayQuality}%</p>
         </div>
         <div className="glass-card-sm p-4 text-center">
-          <p className="text-xs text-textDim mb-1">Послідовність</p>
+          <p className="text-xs text-textDim mb-1">Ефективність</p>
           <p className="text-xl font-bold text-blue">{displayConsistency}%</p>
         </div>
       </div>

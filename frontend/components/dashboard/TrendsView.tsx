@@ -51,7 +51,7 @@ export default function TrendsView({ data, averageMacros }: TrendsViewProps) {
 
       {/* Strain */}
       <Card>
-        <Label>Тижнева напруга</Label>
+        <Label>Тижневе навантаження</Label>
         <WeeklyChart data={data.strain} color="#ef4444" showValues={true} maxValue={12} />
       </Card>
 

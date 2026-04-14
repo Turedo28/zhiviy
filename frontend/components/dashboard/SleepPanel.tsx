@@ -3,30 +3,30 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const sleepData = [
-  { day: 'Mon', hours: 7.2 },
-  { day: 'Tue', hours: 6.8 },
-  { day: 'Wed', hours: 7.5 },
-  { day: 'Thu', hours: 6.5 },
-  { day: 'Fri', hours: 8.1 },
-  { day: 'Sat', hours: 8.3 },
-  { day: 'Sun', hours: 7.9 },
+  { day: 'Пн', hours: 7.2 },
+  { day: 'Вт', hours: 6.8 },
+  { day: 'Ср', hours: 7.5 },
+  { day: 'Чт', hours: 6.5 },
+  { day: 'Пт', hours: 8.1 },
+  { day: 'Сб', hours: 8.3 },
+  { day: 'Нд', hours: 7.9 },
 ];
 
 export default function SleepPanel() {
   return (
     <div className="bg-secondary border border-tertiary rounded-lg p-6">
-      <h3 className="text-xl font-semibold text-white mb-4">Sleep</h3>
+      <h3 className="text-xl font-semibold text-white mb-4">Сон</h3>
 
       <div className="space-y-4">
         {/* Last Night */}
         <div className="bg-tertiary rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-1">Last Night</div>
+          <div className="text-gray-400 text-sm mb-1">Минула ніч</div>
           <div className="flex items-baseline space-x-2">
-            <div className="text-3xl font-bold text-accent">7h 54m</div>
-            <div className="text-gray-500 text-sm">REM: 1h 45m</div>
+            <div className="text-3xl font-bold text-accent">7г 54хв</div>
+            <div className="text-gray-500 text-sm">REM: 1г 45хв</div>
           </div>
           <div className="mt-2 text-xs text-gray-500">
-            Deep: 2h 30m | Light: 3h 39m
+            Глибокий: 2г 30хв | Легкий: 3г 39хв
           </div>
         </div>
 
@@ -52,7 +52,7 @@ export default function SleepPanel() {
 
         {/* Status */}
         <div className="bg-tertiary rounded-lg p-3 text-sm">
-          <div className="text-gray-400">Sleep Quality Score</div>
+          <div className="text-gray-400">Оцінка якості сну</div>
           <div className="text-2xl font-bold text-success mt-1">8.5/10</div>
         </div>
       </div>

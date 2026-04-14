@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, BigInteger, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, BigInteger, Text, Unicode
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -27,7 +27,7 @@ class WhoopSleep(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    whoop_id = Column(String(100), unique=True, nullable=True)
+    whoop_id = Column(Text, unique=True, nullable=True)
 
     start_time = Column(DateTime(timezone=True))
     end_time = Column(DateTime(timezone=True))
@@ -55,6 +55,7 @@ class WhoopRecovery(Base):
     resting_heart_rate = Column(Float, nullable=True)
     spo2 = Column(Float, nullable=True)
     skin_temp = Column(Float, nullable=True)
+    day_strain = Column(Float, nullable=True)
 
     raw_data = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -65,7 +66,7 @@ class WhoopWorkout(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    whoop_id = Column(String(100), unique=True, nullable=True)
+    whoop_id = Column(Text, unique=True, nullable=True)
 
     sport_id = Column(Integer, nullable=True)
     sport_name = Column(String(255), nullable=True)

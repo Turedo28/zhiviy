@@ -216,9 +216,10 @@ async def sync_whoop_data(
     try:
         sleeps = await fetch_sleep_collection(access_token, start_date=start_date)
         for s in sleeps:
-            whoop_id = str(s.get("id", ""))
+            whoop_id = s.get("id")
             if not whoop_id:
                 continue
+            whoop_id = str(whoop_id)
 
             # Check if already exists
             existing = await db.execute(
@@ -282,9 +283,10 @@ async def sync_whoop_data(
     try:
         workouts = await fetch_workout_collection(access_token, start_date=start_date)
         for w in workouts:
-            whoop_id = str(w.get("id", ""))
+            whoop_id = w.get("id")
             if not whoop_id:
                 continue
+            whoop_id = str(whoop_id)
 
             existing = await db.execute(
                 select(WhoopWorkout).where(WhoopWorkout.whoop_id == whoop_id)

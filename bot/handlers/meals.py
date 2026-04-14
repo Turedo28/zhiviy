@@ -11,6 +11,7 @@ from bot.i18n import get_message
 from bot.config import bot_config
 from bot.keyboards.main_menu import get_meal_confirmation_keyboard, get_main_menu_keyboard
 from bot.services.claude_vision import analyze_food_photo
+from bot.services.sync_queue import enqueue_meal
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,19 @@ async def confirm_meal(callback: CallbackQuery, state: FSMContext):
         logger.error(f"Failed to save meal to backend: {e}")
         saved = False
 
+    meal_payload = {
+        "telegram_id": telegram_id,
+        "name": analysis.get("name", "Невідома страва"),
+        "description": analysis.get("description", ""),
+        "calories": analysis.get("calories", 0),
+        "protein_g": analysis.get("protein_g", 0),
+        "carbs_g": analysis.get("carbs_g", 0),
+        "fats_g": analysis.get("fats_g", 0),
+        "fiber_g": analysis.get("fiber_g", 0),
+        "weight_g": analysis.get("weight_g", 0),
+        "confidence": analysis.get("confidence", "medium"),
+    }
+
     if saved:
         success_text = (
             f"✅ <b>Прийом їжі збережено!</b>\n\n"
@@ -147,8 +161,10 @@ async def confirm_meal(callback: CallbackQuery, state: FSMContext):
             f"{analysis.get('calories', 0):.0f} kcal"
         )
     else:
+        # Queue for retry
+        enqueue_meal(meal_payload)
         success_text = (
-            f"⚠️ <b>Аналіз виконано, але не вдалося зберегти.</b>\n\n"
+            f"⚠️ <b>Збережено локально, синхронізую пізніше.</b>\n\n"
             f"🍽 {analysis.get('name', 'Страва')}: "
             f"{analysis.get('calories', 0):.0f} kcal"
         )
