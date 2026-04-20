@@ -45,7 +45,7 @@ async def show_profile(callback: CallbackQuery):
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            url = f"{bot_config.API_BASE_URL}/dashboard/today/demo"
+            url = f"{bot_config.API_BASE_URL}/dashboard/bot/{telegram_id}"
             response = await client.get(url, params={"telegram_id": telegram_id})
 
             if response.status_code != 200:
@@ -101,7 +101,7 @@ async def show_whoop_status(callback: CallbackQuery):
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            url = f"{bot_config.API_BASE_URL}/dashboard/today/demo"
+            url = f"{bot_config.API_BASE_URL}/dashboard/bot/{telegram_id}"
             response = await client.get(url, params={"telegram_id": telegram_id})
 
             if response.status_code == 200:

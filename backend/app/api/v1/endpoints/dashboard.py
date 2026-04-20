@@ -436,3 +436,141 @@ async def get_today_summary(
             pass
 
     return summary
+
+
+@router.get("/bot/{telegram_id}", response_model=TodaySummary)
+async def get_today_summary_bot(
+    telegram_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> TodaySummary:
+    """Get today's dashboard summary for Telegram bot (by telegram_id, no JWT)."""
+    stmt = select(User).where(User.telegram_id == telegram_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="User not found")
+
+    today = datetime.now(timezone.utc).date()
+    today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
+    today_end = datetime.combine(today, datetime.max.time()).replace(tzinfo=timezone.utc)
+
+    stmt = (
+        select(Meal)
+        .where(and_(
+            Meal.user_id == user.id,
+            Meal.created_at >= today_start,
+            Meal.created_at <= today_end,
+        ))
+        .order_by(Meal.created_at.asc())
+    )
+    result = await db.execute(stmt)
+    meals = result.scalars().all()
+
+    total_cal = sum(m.calories or 0 for m in meals)
+    total_protein = sum(m.protein_g or 0 for m in meals)
+    total_carbs = sum(m.carbs_g or 0 for m in meals)
+    total_fats = sum(m.fats_g or 0 for m in meals)
+
+    day_strain, calories_burned, n_plan, cal_target, macros = await _get_nutrition_context(
+        db, user, today_start, today_end
+    )
+
+    meal_summaries = [
+        MealSummary(
+            id=m.id,
+            name=m.name or "Страва",
+            description=m.description,
+            calories=m.calories or 0,
+            protein_g=m.protein_g or 0,
+            carbs_g=m.carbs_g or 0,
+            fats_g=m.fats_g or 0,
+            time=m.created_at.strftime("%H:%M") if m.created_at else "",
+            source=m.source or "unknown",
+        )
+        for m in meals
+    ]
+
+    nutrition = NutritionSummary(
+        calories_consumed=total_cal,
+        calories_target=cal_target,
+        protein_g=total_protein,
+        protein_target=macros["protein_g"],
+        carbs_g=total_carbs,
+        carbs_target=macros["carbs_g"],
+        fats_g=total_fats,
+        fats_target=macros["fats_g"],
+        meals=meal_summaries,
+    )
+
+    sleep_summary = None
+    yesterday_start = today_start - timedelta(days=1)
+    stmt = (
+        select(WhoopSleep)
+        .where(and_(
+            WhoopSleep.user_id == user.id,
+            WhoopSleep.end_time >= yesterday_start,
+            WhoopSleep.end_time <= today_end,
+        ))
+        .order_by(WhoopSleep.end_time.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    sleep = result.scalar_one_or_none()
+
+    if sleep:
+        total_sleep_ms = (
+            (sleep.deep_duration_ms or 0)
+            + (sleep.rem_duration_ms or 0)
+            + (sleep.light_duration_ms or 0)
+        )
+        sleep_summary = SleepSummary(
+            hours=_ms_to_hours(total_sleep_ms + (sleep.wake_duration_ms or 0)),
+            score=sleep.score,
+            efficiency=sleep.efficiency,
+            deep_hours=_ms_to_hours(sleep.deep_duration_ms),
+            rem_hours=_ms_to_hours(sleep.rem_duration_ms),
+            light_hours=_ms_to_hours(sleep.light_duration_ms),
+            awake_hours=_ms_to_hours(sleep.wake_duration_ms),
+            bed_time=sleep.start_time.astimezone(KYIV_TZ).strftime("%H:%M") if sleep.start_time else None,
+            wake_time=sleep.end_time.astimezone(KYIV_TZ).strftime("%H:%M") if sleep.end_time else None,
+        )
+
+    recovery_summary = None
+    stmt = (
+        select(WhoopRecovery)
+        .where(WhoopRecovery.user_id == user.id)
+        .order_by(WhoopRecovery.whoop_cycle_id.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    recovery = result.scalar_one_or_none()
+    if recovery:
+        recovery_summary = RecoverySummary(
+            score=recovery.score,
+            hrv=recovery.hrv_rmssd,
+            resting_hr=recovery.resting_heart_rate,
+            spo2=recovery.spo2,
+            level=_recovery_level(recovery.score),
+        )
+
+    stmt = select(WhoopToken).where(WhoopToken.user_id == user.id)
+    result = await db.execute(stmt)
+    whoop_connected = result.scalar_one_or_none() is not None
+
+    water_raw = await _get_water_summary(db, user.id, user.weight_kg, today_start, today_end)
+    workouts_raw = await _get_workouts_today(db, user.id, today_start, today_end)
+
+    return TodaySummary(
+        date=today.isoformat(),
+        user_name=user.first_name or "Користувач",
+        nutrition=nutrition,
+        sleep=sleep_summary,
+        recovery=recovery_summary,
+        water=WaterSummary(**water_raw),
+        workouts=[WorkoutSummary(**w) for w in workouts_raw],
+        whoop_connected=whoop_connected,
+        strain=day_strain,
+        nutrition_plan=NutritionPlan(**n_plan) if n_plan else None,
+    )
