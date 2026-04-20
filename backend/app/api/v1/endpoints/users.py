@@ -61,7 +61,7 @@ async def get_user_profile(
     current_user: User = Depends(get_current_user),
 ) -> UserProfileResponse:
     """Get current user profile."""
-    return UserProfileResponse.from_attributes(current_user)
+    return UserProfileResponse.model_validate(current_user)
 
 
 @router.put("/me", response_model=UserProfileResponse)
@@ -81,7 +81,7 @@ async def update_user_profile(
     await db.commit()
     await db.refresh(current_user)
 
-    return UserProfileResponse.from_attributes(current_user)
+    return UserProfileResponse.model_validate(current_user)
 
 
 @router.put("/me/onboarding", response_model=UserProfileResponse)
@@ -104,4 +104,4 @@ async def complete_onboarding(
     await db.commit()
     await db.refresh(current_user)
 
-    return UserProfileResponse.from_attributes(current_user)
+    return UserProfileResponse.model_validate(current_user)

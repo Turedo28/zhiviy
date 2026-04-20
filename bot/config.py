@@ -16,7 +16,7 @@ class BotConfig:
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
     TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME")
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-    API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+    API_BASE_URL = os.getenv("API_BASE_URL", "http://healthtrack_backend:8000/api")
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 

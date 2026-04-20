@@ -20,6 +20,7 @@ router = Router()
 
 class MealAddState(StatesGroup):
     """FSM states for meal adding flow."""
+    waiting_for_input = State()
     waiting_for_photo = State()
     waiting_for_confirmation = State()
 
@@ -51,16 +52,21 @@ def format_analysis(data: dict) -> str:
     )
 
 
-@router.message(F.text.contains("➕"))
-async def add_meal_start(message: Message, state: FSMContext):
-    """Start meal adding flow."""
-    language = "uk"
-    prompt = get_message("add_meal_prompt", language)
-    await message.answer("📷 Надішліть фото страви, і я проаналізую її склад!")
-    await state.set_state(MealAddState.waiting_for_photo)
+@router.message(F.text == get_message("add_meal", "uk"))
+async def add_meal_start_uk(message: Message, state: FSMContext):
+    """Start meal adding flow (Ukrainian)."""
+    await message.answer("📷 Надішліть фото страви або опишіть що ви з'їли текстом:")
+    await state.set_state(MealAddState.waiting_for_input)
 
 
-@router.message(MealAddState.waiting_for_photo, F.photo)
+@router.message(F.text == get_message("add_meal", "en"))
+async def add_meal_start_en(message: Message, state: FSMContext):
+    """Start meal adding flow (English)."""
+    await message.answer("📷 Send a photo of your meal or describe what you ate:")
+    await state.set_state(MealAddState.waiting_for_input)
+
+
+@router.message(MealAddState.waiting_for_input, F.photo)
 async def process_meal_photo(message: Message, state: FSMContext, bot: Bot):
     """Process meal photo with Claude Vision."""
     language = "uk"
@@ -104,10 +110,29 @@ async def process_meal_photo(message: Message, state: FSMContext, bot: Bot):
         )
 
 
-@router.message(MealAddState.waiting_for_photo, ~F.photo)
-async def wrong_content_type(message: Message, state: FSMContext):
-    """Handle non-photo messages in waiting state."""
-    await message.answer("📷 Будь ласка, надішліть саме фото страви!")
+@router.message(MealAddState.waiting_for_input, F.text)
+async def process_meal_text(message: Message, state: FSMContext):
+    """Process meal text description with Claude analysis."""
+    from bot.services.claude_vision import analyze_food_text
+    language = "uk"
+    processing_msg = await message.answer("🔍 Аналізую опис страви...")
+
+    try:
+        result = await analyze_food_text(message.text)
+        if not result.get("success"):
+            error_msg = result.get("error", "Невідома помилка")
+            await processing_msg.edit_text(f"❌ {error_msg}")
+            return
+
+        analysis_text = format_analysis(result)
+        await state.update_data(analysis=result)
+
+        keyboard = get_meal_confirmation_keyboard(language)
+        await processing_msg.edit_text(analysis_text, reply_markup=keyboard, parse_mode="HTML")
+        await state.set_state(MealAddState.waiting_for_confirmation)
+    except Exception as e:
+        logger.error(f"Error processing meal text: {e}")
+        await processing_msg.edit_text("❌ Виникла помилка. Спробуйте ще раз.")
 
 
 @router.callback_query(MealAddState.waiting_for_confirmation, F.data == "meal_confirm")
@@ -121,7 +146,7 @@ async def confirm_meal(callback: CallbackQuery, state: FSMContext):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{bot_config.API_BASE_URL}/api/v1/meals/bot",
+                f"{bot_config.API_BASE_URL}/meals/bot",
                 json={
                     "telegram_id": telegram_id,
                     "name": analysis.get("name", "Невідома страва"),
@@ -136,7 +161,7 @@ async def confirm_meal(callback: CallbackQuery, state: FSMContext):
                 },
                 timeout=10,
             )
-            saved = response.status_code == 200
+            saved = response.status_code in (200, 201)
     except Exception as e:
         logger.error(f"Failed to save meal to backend: {e}")
         saved = False
@@ -176,9 +201,9 @@ async def confirm_meal(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(MealAddState.waiting_for_confirmation, F.data == "meal_edit")
 async def edit_meal(callback: CallbackQuery, state: FSMContext):
-    """Edit meal - ask for new photo."""
+    """Edit meal - ask for new photo or text."""
     await callback.message.edit_text("📷 Надішліть нове фото або введіть назву страви:")
-    await state.set_state(MealAddState.waiting_for_photo)
+    await state.set_state(MealAddState.waiting_for_input)
     await callback.answer()
 
 

@@ -1,4 +1,7 @@
 from datetime import datetime, date as date_type, timezone, timedelta
+from zoneinfo import ZoneInfo
+
+KYIV_TZ = ZoneInfo("Europe/Kyiv")
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends
@@ -10,7 +13,8 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.user import User
 from app.models.meal import Meal
-from app.models.whoop import WhoopSleep, WhoopRecovery, WhoopWorkout, WhoopToken
+from app.models.whoop import WhoopSleep, WhoopRecovery, WhoopWorkout, WhoopToken, WhoopCycle
+from app.models.water import WaterLog
 from app.services.nutrition import get_nutrition_plan, calculate_age_from_dob
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -68,6 +72,8 @@ class SleepSummary(BaseModel):
     rem_hours: float
     light_hours: float
     awake_hours: float
+    bed_time: Optional[str] = None
+    wake_time: Optional[str] = None
 
 
 class RecoverySummary(BaseModel):
@@ -78,12 +84,28 @@ class RecoverySummary(BaseModel):
     level: str  # green/yellow/red
 
 
+class WaterSummary(BaseModel):
+    consumed_ml: int
+    target_ml: int
+    percentage: int
+
+
+class WorkoutSummary(BaseModel):
+    sport_name: str
+    duration_min: int
+    strain: Optional[float]
+    calories: int
+    start_time: str
+
+
 class TodaySummary(BaseModel):
     date: str
     user_name: str
     nutrition: NutritionSummary
     sleep: Optional[SleepSummary]
     recovery: Optional[RecoverySummary]
+    water: Optional[WaterSummary] = None
+    workouts: Optional[List[WorkoutSummary]] = None
     whoop_connected: bool
     strain: Optional[float] = None
     nutrition_plan: Optional[NutritionPlan] = None
@@ -108,35 +130,64 @@ def _recovery_level(score: Optional[float]) -> str:
 async def _get_nutrition_context(db: AsyncSession, user, today_start, today_end):
     """
     Shared helper: fetch latest day_strain, burned calories, and compute nutrition plan.
+    Uses Cycle API data (intraday) with fallback to Recovery/Workouts.
     Returns (day_strain, calories_burned, nutrition_plan_dict, cal_target, macros).
     """
     day_strain = None
     calories_burned = 0.0
 
-    # Latest recovery -> day_strain
+    # --- PRIMARY: Get strain + calories from latest Cycle (updates intraday) ---
+    # WHOOP cycles start at sleep time the PREVIOUS evening, so today's strain
+    # comes from a cycle with start_time yesterday evening.
+    # Look back 24h to catch it.
+    yesterday_start = today_start - timedelta(days=1)
     stmt = (
-        select(WhoopRecovery)
-        .where(WhoopRecovery.user_id == user.id)
-        .order_by(WhoopRecovery.whoop_cycle_id.desc())
+        select(WhoopCycle)
+        .where(
+            and_(
+                WhoopCycle.user_id == user.id,
+                WhoopCycle.start_time >= yesterday_start,
+            )
+        )
+        .order_by(WhoopCycle.start_time.desc())
         .limit(1)
     )
     result = await db.execute(stmt)
-    recovery = result.scalar_one_or_none()
-    if recovery and recovery.day_strain is not None:
-        day_strain = recovery.day_strain
+    cycle = result.scalar_one_or_none()
 
-    # Today's burned calories from WHOOP workouts
-    stmt = select(func.sum(WhoopWorkout.calories)).where(
-        and_(
-            WhoopWorkout.user_id == user.id,
-            WhoopWorkout.start_time >= today_start,
-            WhoopWorkout.start_time <= today_end,
+    if cycle:
+        if cycle.day_strain is not None:
+            day_strain = cycle.day_strain
+        if cycle.kilojoule is not None:
+            # Convert kJ to kcal (1 kJ = 0.239006 kcal)
+            calories_burned = round(cycle.kilojoule * 0.239006, 1)
+
+    # --- FALLBACK: Recovery for strain if no Cycle ---
+    if day_strain is None:
+        stmt = (
+            select(WhoopRecovery)
+            .where(WhoopRecovery.user_id == user.id)
+            .order_by(WhoopRecovery.whoop_cycle_id.desc())
+            .limit(1)
         )
-    )
-    result = await db.execute(stmt)
-    burned = result.scalar()
-    if burned:
-        calories_burned = float(burned)
+        result = await db.execute(stmt)
+        recovery = result.scalar_one_or_none()
+        if recovery and recovery.day_strain is not None:
+            day_strain = recovery.day_strain
+
+    # --- FALLBACK: Workouts sum for calories if no Cycle ---
+    if calories_burned == 0.0:
+        stmt = select(func.sum(WhoopWorkout.calories)).where(
+            and_(
+                WhoopWorkout.user_id == user.id,
+                WhoopWorkout.start_time >= today_start,
+                WhoopWorkout.start_time <= today_end,
+            )
+        )
+        result = await db.execute(stmt)
+        burned = result.scalar()
+        if burned:
+            calories_burned = float(burned)
 
     # Build nutrition plan if user profile is complete
     n_plan = None
@@ -171,6 +222,58 @@ async def _get_nutrition_context(db: AsyncSession, user, today_start, today_end)
         }
 
     return day_strain, calories_burned, n_plan, cal_target, macros
+
+
+async def _get_water_summary(db: AsyncSession, user_id: int, weight_kg, today_start, today_end):
+    """Fetch today's water consumption."""
+    stmt = select(func.sum(WaterLog.amount_ml)).where(
+        and_(
+            WaterLog.user_id == user_id,
+            WaterLog.created_at >= today_start,
+            WaterLog.created_at <= today_end,
+        )
+    )
+    result = await db.execute(stmt)
+    total = result.scalar() or 0
+    consumed = int(total)
+
+    # Target: 30ml per kg, min 2000ml
+    target = max(2000, int(weight_kg * 30)) if weight_kg else 2500
+
+    return {
+        "consumed_ml": consumed,
+        "target_ml": target,
+        "percentage": min(100, round(consumed / target * 100)) if target > 0 else 0,
+    }
+
+
+async def _get_workouts_today(db: AsyncSession, user_id: int, today_start, today_end):
+    """Fetch today's WHOOP workouts."""
+    stmt = (
+        select(WhoopWorkout)
+        .where(and_(
+            WhoopWorkout.user_id == user_id,
+            WhoopWorkout.start_time >= today_start,
+            WhoopWorkout.start_time <= today_end,
+        ))
+        .order_by(WhoopWorkout.start_time.asc())
+    )
+    result = await db.execute(stmt)
+    workouts = result.scalars().all()
+
+    workouts_data = []
+    for w in workouts:
+        duration_min = 0
+        if w.start_time and w.end_time:
+            duration_min = round((w.end_time - w.start_time).total_seconds() / 60)
+        workouts_data.append({
+            "sport_name": w.sport_name or "Тренування",
+            "duration_min": duration_min,
+            "strain": round(w.strain, 1) if w.strain else None,
+            "calories": round(w.calories) if w.calories else 0,
+            "start_time": w.start_time.astimezone(KYIV_TZ).strftime("%H:%M") if w.start_time else "",
+        })
+    return workouts_data
 
 
 @router.get("/today/demo")
@@ -258,6 +361,8 @@ async def get_today_summary_demo(
             "rem_hours": _ms_to_hours(sleep.rem_duration_ms),
             "light_hours": _ms_to_hours(sleep.light_duration_ms),
             "awake_hours": _ms_to_hours(sleep.wake_duration_ms),
+            "bed_time": sleep.start_time.astimezone(KYIV_TZ).strftime("%H:%M") if sleep.start_time else None,
+            "wake_time": sleep.end_time.astimezone(KYIV_TZ).strftime("%H:%M") if sleep.end_time else None,
         }
 
     # --- Recovery ---
@@ -280,6 +385,44 @@ async def get_today_summary_demo(
             "level": _recovery_level(recovery.score),
         }
 
+    # --- Water ---
+    water_data = await _get_water_summary(db, user.id, user.weight_kg, today_start, today_end)
+
+    # --- Workouts ---
+    workouts_data = await _get_workouts_today(db, user.id, today_start, today_end)
+
+    # --- Build calories_burned breakdown for bot/stats ---
+    exercise_cal = sum(w.get("calories", 0) for w in workouts_data)
+    if user.weight_kg and user.height_cm and user.date_of_birth and user.gender:
+        age = calculate_age_from_dob(user.date_of_birth)
+        from app.services.nutrition import calculate_bmr as calc_bmr
+        bmr_val = round(calc_bmr(user.weight_kg, user.height_cm, age, user.gender))
+        neat_val = round(bmr_val * 0.15)
+        tef_val = round(total_cal * 0.10) if total_cal > 0 else 0
+        total_burned = bmr_val + neat_val + tef_val + exercise_cal
+        burned_source = "whoop" if whoop_connected and calories_burned > 0 else "calculated"
+        # If WHOOP Cycle gives higher total, use it
+        if calories_burned > total_burned:
+            total_burned = round(calories_burned)
+            neat_val = round(total_burned - bmr_val - tef_val - exercise_cal)
+            if neat_val < 0:
+                neat_val = 0
+    else:
+        bmr_val = 0
+        neat_val = 0
+        tef_val = 0
+        total_burned = round(calories_burned) if calories_burned > 0 else 0
+        burned_source = "incomplete_profile"
+
+    calories_burned_data = {
+        "total": total_burned,
+        "bmr": bmr_val,
+        "neat": neat_val,
+        "tef": tef_val,
+        "exercise": exercise_cal,
+        "source": burned_source,
+    }
+
     return {
         "date": today.isoformat(),
         "user_name": user.first_name or "Користувач",
@@ -293,11 +436,27 @@ async def get_today_summary_demo(
             "fats_g": total_fats,
             "fats_target": macros["fats_g"],
             "meals": meals_data,
+            "meals_count": len(meals_data),
+            "goal_label": n_plan.get("goal_label", "") if n_plan else "",
         },
         "sleep": sleep_data,
         "recovery": recovery_data,
+        "water": water_data,
+        "water_ml": water_data["consumed_ml"] if water_data else 0,
+        "water_target_ml": water_data["target_ml"] if water_data else 2500,
+        "workouts": [
+            {
+                "sport_name": w["sport_name"],
+                "calories": w["calories"],
+                "duration_min": w["duration_min"],
+                "strain": w.get("strain"),
+                "start_time": w.get("start_time", ""),
+            }
+            for w in workouts_data
+        ],
         "whoop_connected": whoop_connected,
         "strain": day_strain,
+        "calories_burned": calories_burned_data,
         "nutrition_plan": n_plan,
     }
 
@@ -392,6 +551,8 @@ async def get_today_summary(
             rem_hours=_ms_to_hours(sleep.rem_duration_ms),
             light_hours=_ms_to_hours(sleep.light_duration_ms),
             awake_hours=_ms_to_hours(sleep.wake_duration_ms),
+            bed_time=sleep.start_time.astimezone(KYIV_TZ).strftime("%H:%M") if sleep.start_time else None,
+            wake_time=sleep.end_time.astimezone(KYIV_TZ).strftime("%H:%M") if sleep.end_time else None,
         )
 
     # --- Recovery ---
@@ -419,12 +580,22 @@ async def get_today_summary(
     result = await db.execute(stmt)
     whoop_connected = result.scalar_one_or_none() is not None
 
+    # --- Water ---
+    water_raw = await _get_water_summary(db, current_user.id, current_user.weight_kg, today_start, today_end)
+    water_summary = WaterSummary(**water_raw)
+
+    # --- Workouts ---
+    workouts_raw = await _get_workouts_today(db, current_user.id, today_start, today_end)
+    workouts_list = [WorkoutSummary(**w) for w in workouts_raw]
+
     return TodaySummary(
         date=today.isoformat(),
         user_name=current_user.first_name or "Користувач",
         nutrition=nutrition,
         sleep=sleep_summary,
         recovery=recovery_summary,
+        water=water_summary,
+        workouts=workouts_list,
         whoop_connected=whoop_connected,
         strain=day_strain,
         nutrition_plan=NutritionPlan(**n_plan) if n_plan else None,

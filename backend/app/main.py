@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.redis import init_redis, close_redis
+from app.services.whoop_scheduler import start_whoop_scheduler, stop_whoop_scheduler
 
 app = FastAPI(
     title="HealthTrack API",
@@ -26,13 +27,15 @@ app.include_router(api_router)
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize Redis connection on startup."""
+    """Initialize Redis connection and start background schedulers."""
     await init_redis()
+    start_whoop_scheduler()
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Close Redis connection on shutdown."""
+    """Close Redis connection and stop background schedulers."""
+    stop_whoop_scheduler()
     await close_redis()
 
 

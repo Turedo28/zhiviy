@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 QUEUE_FILE = Path("/app/data/pending_meals.json")
 RETRY_INTERVAL = 60  # seconds between retry attempts
+MAX_RETRIES = 10  # max retry attempts per meal
 
 
 def _ensure_dir():
@@ -57,20 +58,27 @@ async def retry_pending_meals():
 
     async with httpx.AsyncClient() as client:
         for meal in queue:
+            retries = meal.get("retry_count", 0)
+            if retries >= MAX_RETRIES:
+                logger.warning(f"Dropping meal '{meal.get('name')}' after {MAX_RETRIES} retries")
+                continue  # Drop permanently failed meals
+
             try:
-                payload = {k: v for k, v in meal.items() if k != "queued_at"}
+                payload = {k: v for k, v in meal.items() if k not in ("queued_at", "retry_count")}
                 response = await client.post(
-                    f"{bot_config.API_BASE_URL}/api/v1/meals/bot",
+                    f"{bot_config.API_BASE_URL}/meals/bot",
                     json=payload,
                     timeout=10,
                 )
-                if response.status_code == 200:
+                if response.status_code in (200, 201):
                     synced += 1
                     logger.info(f"Synced queued meal: {meal.get('name')}")
                 else:
+                    meal["retry_count"] = retries + 1
                     still_pending.append(meal)
                     logger.warning(f"Retry failed for '{meal.get('name')}': HTTP {response.status_code}")
             except Exception as e:
+                meal["retry_count"] = retries + 1
                 still_pending.append(meal)
                 logger.error(f"Retry error for '{meal.get('name')}': {e}")
 

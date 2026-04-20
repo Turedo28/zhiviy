@@ -6,10 +6,11 @@ from typing import Optional, Dict, Any, List
 
 import httpx
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models.whoop import WhoopToken, WhoopSleep, WhoopRecovery, WhoopWorkout
+from app.models.whoop import WhoopToken, WhoopSleep, WhoopRecovery, WhoopWorkout, WhoopCycle
 
 logger = logging.getLogger(__name__)
 
@@ -207,10 +208,11 @@ async def sync_whoop_data(
 ) -> Dict[str, int]:
     """
     Sync WHOOP data (sleep, recovery, workouts) for a user.
-    Returns count of synced items.
+    Creates new records or updates existing ones (upsert logic).
+    Returns count of synced/updated items.
     """
     start_date = (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime("%Y-%m-%d")
-    counts = {"sleep": 0, "recovery": 0, "workouts": 0}
+    counts = {"sleep": 0, "recovery": 0, "workouts": 0, "cycles": 0}
 
     # --- Sync Sleep (v2 format) ---
     try:
@@ -220,17 +222,9 @@ async def sync_whoop_data(
             if not whoop_id:
                 continue
             whoop_id = str(whoop_id)
-
-            # Check if already exists
-            existing = await db.execute(
-                select(WhoopSleep).where(WhoopSleep.whoop_id == whoop_id)
-            )
-            if existing.scalar_one_or_none():
-                continue
-
             score_data = s.get("score", {}) or {}
             stage = score_data.get("stage_summary", {}) or {}
-            sleep_record = WhoopSleep(
+            values = dict(
                 user_id=user_id,
                 whoop_id=whoop_id,
                 start_time=_parse_datetime(s.get("start")),
@@ -244,10 +238,16 @@ async def sync_whoop_data(
                 efficiency=score_data.get("sleep_efficiency_percentage"),
                 raw_data=json.dumps(s),
             )
-            db.add(sleep_record)
+            stmt = pg_insert(WhoopSleep).values(**values).on_conflict_do_update(
+                index_elements=["whoop_id"],
+                set_={k: v for k, v in values.items() if k != "whoop_id"},
+            )
+            await db.execute(stmt)
             counts["sleep"] += 1
+        await db.flush()
     except Exception as e:
         logger.error(f"Error syncing sleep: {e}")
+        await db.rollback()
 
     # --- Sync Recovery (v2 format) ---
     try:
@@ -256,15 +256,8 @@ async def sync_whoop_data(
             cycle_id = r.get("cycle_id")
             if not cycle_id:
                 continue
-
-            existing = await db.execute(
-                select(WhoopRecovery).where(WhoopRecovery.whoop_cycle_id == cycle_id)
-            )
-            if existing.scalar_one_or_none():
-                continue
-
             score_data = r.get("score", {}) or {}
-            recovery_record = WhoopRecovery(
+            values = dict(
                 user_id=user_id,
                 whoop_cycle_id=cycle_id,
                 score=score_data.get("recovery_score"),
@@ -274,10 +267,16 @@ async def sync_whoop_data(
                 skin_temp=score_data.get("skin_temp_celsius"),
                 raw_data=json.dumps(r),
             )
-            db.add(recovery_record)
+            stmt = pg_insert(WhoopRecovery).values(**values).on_conflict_do_update(
+                index_elements=["whoop_cycle_id"],
+                set_={k: v for k, v in values.items() if k != "whoop_cycle_id"},
+            )
+            await db.execute(stmt)
             counts["recovery"] += 1
+        await db.flush()
     except Exception as e:
         logger.error(f"Error syncing recovery: {e}")
+        await db.rollback()
 
     # --- Sync Workouts (v2 format) ---
     try:
@@ -287,15 +286,9 @@ async def sync_whoop_data(
             if not whoop_id:
                 continue
             whoop_id = str(whoop_id)
-
-            existing = await db.execute(
-                select(WhoopWorkout).where(WhoopWorkout.whoop_id == whoop_id)
-            )
-            if existing.scalar_one_or_none():
-                continue
-
             score_data = w.get("score", {}) or {}
-            workout_record = WhoopWorkout(
+            calories = score_data.get("kilojoule", 0) / 4.184 if score_data.get("kilojoule") else None
+            values = dict(
                 user_id=user_id,
                 whoop_id=whoop_id,
                 sport_id=w.get("sport_id"),
@@ -305,13 +298,50 @@ async def sync_whoop_data(
                 strain=score_data.get("strain"),
                 average_hr=score_data.get("average_heart_rate"),
                 max_hr=score_data.get("max_heart_rate"),
-                calories=score_data.get("kilojoule", 0) / 4.184 if score_data.get("kilojoule") else None,
+                calories=calories,
                 raw_data=json.dumps(w),
             )
-            db.add(workout_record)
+            stmt = pg_insert(WhoopWorkout).values(**values).on_conflict_do_update(
+                index_elements=["whoop_id"],
+                set_={k: v for k, v in values.items() if k != "whoop_id"},
+            )
+            await db.execute(stmt)
             counts["workouts"] += 1
+        await db.flush()
     except Exception as e:
         logger.error(f"Error syncing workouts: {e}")
+        await db.rollback()
+
+    # --- Sync Cycles (v2 format) — intraday strain + total calories ---
+    try:
+        cycles = await fetch_cycle_collection(access_token, start_date=start_date)
+        for c in cycles:
+            whoop_id = c.get("id")
+            if not whoop_id:
+                continue
+            whoop_id = str(whoop_id)
+            score_data = c.get("score", {}) or {}
+            values = dict(
+                user_id=user_id,
+                whoop_id=whoop_id,
+                start_time=_parse_datetime(c.get("start")),
+                end_time=_parse_datetime(c.get("end")),
+                day_strain=score_data.get("strain"),
+                kilojoule=score_data.get("kilojoule"),
+                average_hr=score_data.get("average_heart_rate"),
+                max_hr=score_data.get("max_heart_rate"),
+                raw_data=json.dumps(c),
+            )
+            stmt = pg_insert(WhoopCycle).values(**values).on_conflict_do_update(
+                index_elements=["whoop_id"],
+                set_={k: v for k, v in values.items() if k != "whoop_id"},
+            )
+            await db.execute(stmt)
+            counts["cycles"] += 1
+        await db.flush()
+    except Exception as e:
+        logger.error(f"Error syncing cycles: {e}")
+        await db.rollback()
 
     await db.commit()
     logger.info(f"WHOOP sync complete for user {user_id}: {counts}")

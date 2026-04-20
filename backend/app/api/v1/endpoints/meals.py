@@ -138,6 +138,9 @@ async def create_meal_from_bot(
         protein_g=meal_data.protein_g,
         carbs_g=meal_data.carbs_g,
         fats_g=meal_data.fats_g,
+        fiber_g=meal_data.fiber_g,
+        weight_g=meal_data.weight_g,
+        confidence=meal_data.confidence,
         source="telegram",
     )
 
@@ -161,9 +164,11 @@ async def analyze_meal_photo(
         analysis = await analyze_food_photo(content)
         return analysis
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Photo analysis failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze photo: {str(e)}",
+            detail="Failed to analyze photo",
         )
 
 

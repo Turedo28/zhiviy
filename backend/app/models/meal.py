@@ -19,6 +19,9 @@ class Meal(Base):
     protein_g = Column(Float, default=0)
     carbs_g = Column(Float, default=0)
     fats_g = Column(Float, default=0)
+    fiber_g = Column(Float, default=0)
+    weight_g = Column(Float, nullable=True)
+    confidence = Column(String(10), default="medium")
 
     source = Column(String(10), default="telegram")  # telegram or web
     ai_raw_response = Column(Text, nullable=True)  # Store Claude's full response for debugging

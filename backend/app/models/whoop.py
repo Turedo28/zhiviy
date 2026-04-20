@@ -61,6 +61,25 @@ class WhoopRecovery(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class WhoopCycle(Base):
+    """WHOOP physiological cycle — gives intraday strain and total calories."""
+    __tablename__ = "whoop_cycles"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    whoop_id = Column(BigInteger, unique=True, nullable=True)
+
+    start_time = Column(DateTime(timezone=True))
+    end_time = Column(DateTime(timezone=True))
+    day_strain = Column(Float, nullable=True)
+    kilojoule = Column(Float, nullable=True)  # Total energy expenditure in kJ
+    average_hr = Column(Float, nullable=True)
+    max_hr = Column(Float, nullable=True)
+
+    raw_data = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class WhoopWorkout(Base):
     __tablename__ = "whoop_workouts"
 

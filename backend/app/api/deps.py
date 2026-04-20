@@ -30,8 +30,9 @@ async def get_current_user(
             detail="Invalid token",
         )
 
-    user_id = int(payload.get("sub"))
-    if user_id is None:
+    try:
+        user_id = int(payload.get("sub"))
+    except (TypeError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",

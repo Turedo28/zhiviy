@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token, verify_telegram_hash
@@ -115,17 +116,13 @@ async def telegram_login(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    token: str = None,
-    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> UserResponse:
     """Get current authenticated user info."""
-    from app.api.deps import get_current_user
-
-    user = await get_current_user(token, db)
-    return UserResponse.from_attributes(user)
+    return UserResponse.model_validate(current_user)
 
 
-# --- WHOOP OAuth Callback (redirect_uri = /api/v1/auth/whoop/callback) ---
+# --- WHOOP OAuth Callback (redirect_uri = /api/auth/whoop/callback) ---
 
 @router.get("/whoop/callback")
 async def whoop_oauth_callback(
@@ -203,4 +200,6 @@ async def whoop_oauth_callback(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"WHOOP connection failed: {str(e)}")
+        import logging
+        logging.getLogger(__name__).error(f"WHOOP connection failed: {e}")
+        raise HTTPException(status_code=500, detail="WHOOP connection failed")
