@@ -362,7 +362,7 @@ function Dashboard() {
             {/* Training Panel — only show if WHOOP connected */}
             {hasWhoop && (
               <TrainingPanel
-                workouts={Array.isArray(dashData?.workouts) ? dashData.workouts : (dashData?.workouts?.workouts ?? [])}
+                workouts={dashData?.workouts ?? []}
                 dayStrain={dashData?.strain ?? null}
                 caloriesBurned={dashData?.nutrition_plan?.calories_burned ?? 0}
               />
