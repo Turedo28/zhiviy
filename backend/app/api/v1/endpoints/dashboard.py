@@ -9,8 +9,11 @@ from pydantic import BaseModel
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import json
+
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.redis import get_redis
 from app.models.user import User
 from app.models.meal import Meal
 from app.models.whoop import WhoopSleep, WhoopRecovery, WhoopWorkout, WhoopToken, WhoopCycle
@@ -282,6 +285,16 @@ async def get_today_summary(
     db: AsyncSession = Depends(get_db),
 ) -> TodaySummary:
     """Get today's dashboard summary: nutrition, sleep, recovery."""
+    try:
+        redis = await get_redis()
+        cache_key = f"dashboard:today:{current_user.id}"
+        cached = await redis.get(cache_key)
+        if cached:
+            return TodaySummary.model_validate_json(cached)
+    except Exception:
+        redis = None
+        cache_key = None
+
     today = datetime.now(timezone.utc).date()
     today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
     today_end = datetime.combine(today, datetime.max.time()).replace(tzinfo=timezone.utc)
@@ -403,7 +416,7 @@ async def get_today_summary(
     workouts_raw = await _get_workouts_today(db, current_user.id, today_start, today_end)
     workouts_list = [WorkoutSummary(**w) for w in workouts_raw]
 
-    return TodaySummary(
+    summary = TodaySummary(
         date=today.isoformat(),
         user_name=current_user.first_name or "Користувач",
         nutrition=nutrition,
@@ -415,3 +428,11 @@ async def get_today_summary(
         strain=day_strain,
         nutrition_plan=NutritionPlan(**n_plan) if n_plan else None,
     )
+
+    if redis and cache_key:
+        try:
+            await redis.set(cache_key, summary.model_dump_json(), ex=60)
+        except Exception:
+            pass
+
+    return summary

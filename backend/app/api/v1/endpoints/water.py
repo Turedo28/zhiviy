@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.redis import get_redis
 from app.models.user import User
 from app.models.water import WaterLog
 
@@ -81,6 +82,12 @@ async def add_water(
     result = await db.execute(stmt)
     total = result.scalar() or 0
     target = _calculate_water_target(current_user)
+
+    try:
+        redis = await get_redis()
+        await redis.delete(f"dashboard:today:{current_user.id}")
+    except Exception:
+        pass
 
     return {
         "id": log.id,

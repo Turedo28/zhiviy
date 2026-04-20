@@ -2,12 +2,13 @@ from datetime import datetime, date as date_type, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.redis import get_redis
 from app.models.meal import Meal
 from app.models.user import User
 from app.services.claude_service import analyze_food_photo
@@ -26,8 +27,7 @@ class MealResponse(BaseModel):
     source: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MealCreate(BaseModel):
@@ -73,7 +73,7 @@ async def list_meals(
     return [MealResponse.model_validate(meal) for meal in meals]
 
 
-@router.post("", response_model=MealResponse)
+@router.post("", response_model=MealResponse, status_code=201)
 async def create_meal(
     meal_data: MealCreate,
     current_user: User = Depends(get_current_user),
@@ -95,6 +95,12 @@ async def create_meal(
     await db.commit()
     await db.refresh(meal)
 
+    try:
+        redis = await get_redis()
+        await redis.delete(f"dashboard:today:{current_user.id}")
+    except Exception:
+        pass
+
     return MealResponse.model_validate(meal)
 
 
@@ -111,7 +117,7 @@ class BotMealCreate(BaseModel):
     confidence: str = "medium"
 
 
-@router.post("/bot", response_model=MealResponse)
+@router.post("/bot", response_model=MealResponse, status_code=201)
 async def create_meal_from_bot(
     meal_data: BotMealCreate,
     db: AsyncSession = Depends(get_db),
