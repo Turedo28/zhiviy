@@ -6,6 +6,7 @@ import TelegramLoginButton from '@/components/ui/TelegramLoginButton';
 import Hero from '@/components/landing/Hero';
 import Features from '@/components/landing/Features';
 import Preview from '@/components/landing/Preview';
+import { setAuthToken } from '@/lib/auth';
 
 export default function Home() {
   const router = useRouter();
@@ -14,9 +15,10 @@ export default function Home() {
   useEffect(() => {
     setIsLoaded(true);
 
-    // Check if user is already logged in
     const token = localStorage.getItem('access_token');
     if (token) {
+      // Re-set cookie in case it expired or was never set (e.g. logged in before cookie support)
+      setAuthToken(token);
       router.push('/dashboard');
     }
   }, [router]);
