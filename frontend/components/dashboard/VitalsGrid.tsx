@@ -94,12 +94,18 @@ export default function VitalsGrid({
             <div className="glass-card-sm p-4 text-center cursor-help">
               <p className="text-xs text-textDim mb-2">{vital.label}</p>
               <div className="flex items-baseline justify-center gap-1 mb-2">
-                <span className="text-2xl font-bold text-text">
-                  {typeof vital.data.value === 'number' ? Number(vital.data.value.toFixed(1)) : vital.data.value}
-                </span>
-                <span className="text-xs text-textSec">{vital.data.unit}</span>
+                {vital.data.value ? (
+                  <>
+                    <span className="text-2xl font-bold text-text">
+                      {typeof vital.data.value === 'number' ? Number(vital.data.value.toFixed(1)) : vital.data.value}
+                    </span>
+                    <span className="text-xs text-textSec">{vital.data.unit}</span>
+                  </>
+                ) : (
+                  <span className="text-2xl font-bold text-textDim">—</span>
+                )}
               </div>
-              {vital.data.trend && (
+              {vital.data.trend && vital.data.value !== 0 && (
                 <span
                   style={{ color: getTrendColor(vital.data.trend) }}
                   className="text-sm font-semibold"

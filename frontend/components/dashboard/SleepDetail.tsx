@@ -47,19 +47,19 @@ export default function SleepDetail({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="glass-card-sm p-4 text-center">
           <p className="text-xs text-textDim mb-1">Засинання</p>
-          <p className="text-xl font-bold text-accent">{bedTime}</p>
+          <p className="text-xl font-bold text-accent">{bedTime || '—'}</p>
         </div>
         <div className="glass-card-sm p-4 text-center">
           <p className="text-xs text-textDim mb-1">Підйом</p>
-          <p className="text-xl font-bold text-accent">{wakeTime}</p>
+          <p className="text-xl font-bold text-accent">{wakeTime || '—'}</p>
         </div>
         <div className="glass-card-sm p-4 text-center">
           <p className="text-xs text-textDim mb-1">Якість</p>
-          <p className="text-xl font-bold text-green">{displayQuality}%</p>
+          <p className="text-xl font-bold text-green">{displayQuality ? Math.round(displayQuality) : '—'}%</p>
         </div>
         <div className="glass-card-sm p-4 text-center">
           <p className="text-xs text-textDim mb-1">Ефективність</p>
-          <p className="text-xl font-bold text-blue">{displayConsistency}%</p>
+          <p className="text-xl font-bold text-blue">{displayConsistency ? Math.round(displayConsistency) : '—'}%</p>
         </div>
       </div>
 
@@ -70,6 +70,7 @@ export default function SleepDetail({
           label="Глибокий сон"
           unit="ч"
           showPercentage={false}
+          decimals={1}
         />
         <ProgressBar
           current={stages.rem}
@@ -77,6 +78,7 @@ export default function SleepDetail({
           label="REM сон"
           unit="ч"
           showPercentage={false}
+          decimals={1}
         />
         <ProgressBar
           current={stages.light}
@@ -84,6 +86,7 @@ export default function SleepDetail({
           label="Легкий сон"
           unit="ч"
           showPercentage={false}
+          decimals={1}
         />
         <ProgressBar
           current={stages.awake}
@@ -91,6 +94,7 @@ export default function SleepDetail({
           label="Пробудження"
           unit="ч"
           showPercentage={false}
+          decimals={1}
         />
       </div>
 

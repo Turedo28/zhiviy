@@ -1,61 +1,94 @@
 'use client';
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import Card from '@/components/ui/Card';
+import Label from '@/components/ui/Label';
 
-const workoutData = [
-  { day: 'Пн', strain: 7.2 },
-  { day: 'Вт', strain: 5.8 },
-  { day: 'Ср', strain: 8.5 },
-  { day: 'Чт', strain: 6.5 },
-  { day: 'Пт', strain: 7.1 },
-  { day: 'Сб', strain: 8.3 },
-  { day: 'Нд', strain: 4.5 },
-];
+interface Workout {
+  sport_name: string;
+  duration_min: number;
+  strain: number | null;
+  calories: number;
+  start_time: string;
+}
 
-export default function TrainingPanel() {
+interface TrainingPanelProps {
+  workouts: Workout[];
+  dayStrain: number | null;
+  caloriesBurned: number;
+}
+
+export default function TrainingPanel({ workouts, dayStrain, caloriesBurned }: TrainingPanelProps) {
+  const totalDuration = workouts.reduce((sum, w) => sum + w.duration_min, 0);
+  const strainLabel = dayStrain != null
+    ? dayStrain >= 14 ? 'Висока інтенсивність'
+      : dayStrain >= 8 ? 'Помірна інтенсивність'
+      : 'Легка інтенсивність'
+    : 'Немає даних';
+
+  const strainColor = dayStrain != null
+    ? dayStrain >= 14 ? 'text-red-400'
+      : dayStrain >= 8 ? 'text-yellow-400'
+      : 'text-green-400'
+    : 'text-textDim';
+
   return (
-    <div className="bg-secondary border border-tertiary rounded-lg p-6">
-      <h3 className="text-xl font-semibold text-white mb-6">Тренування</h3>
+    <Card>
+      <div className="mb-6">
+        <Label>Тренування</Label>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Today's Strain */}
-        <div className="bg-tertiary rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-2">Навантаження сьогодні</div>
-          <div className="text-4xl font-bold text-warning mb-1">6.8</div>
-          <div className="text-gray-500 text-sm">Помірна інтенсивність</div>
+      {/* Summary Stats */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="glass-card-sm p-3 text-center">
+          <div className="text-textDim text-xs mb-1">Навантаження</div>
+          <div className={`text-2xl font-bold ${strainColor}`}>
+            {dayStrain != null ? dayStrain.toFixed(1) : '—'}
+          </div>
+          <div className="text-textDim text-xs mt-1">{strainLabel}</div>
         </div>
-
-        {/* This Week */}
-        <div className="bg-tertiary rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-2">Середнє за тиждень</div>
-          <div className="text-4xl font-bold text-accent mb-1">7.1</div>
-          <div className="text-gray-500 text-sm">53 хв середня тривалість</div>
+        <div className="glass-card-sm p-3 text-center">
+          <div className="text-textDim text-xs mb-1">Тренувань</div>
+          <div className="text-2xl font-bold text-accent">
+            {workouts.length}
+          </div>
+          <div className="text-textDim text-xs mt-1">{totalDuration} хв</div>
         </div>
-
-        {/* Calories Burned */}
-        <div className="bg-tertiary rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-2">Спалено калорій</div>
-          <div className="text-4xl font-bold text-success mb-1">487</div>
-          <div className="text-gray-500 text-sm">ккал сьогодні</div>
+        <div className="glass-card-sm p-3 text-center">
+          <div className="text-textDim text-xs mb-1">Спалено</div>
+          <div className="text-2xl font-bold text-green-400">
+            {caloriesBurned}
+          </div>
+          <div className="text-textDim text-xs mt-1">ккал</div>
         </div>
       </div>
 
-      {/* Weekly Chart */}
-      <div>
-        <h4 className="text-sm font-semibold text-white mb-4">Тижневе навантаження</h4>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={workoutData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#262629" />
-            <XAxis dataKey="day" stroke="#999999" />
-            <YAxis stroke="#999999" />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#1a1a1d', border: '1px solid #262629' }}
-              labelStyle={{ color: '#ffb000' }}
-            />
-            <Bar dataKey="strain" fill="#ffb000" name="Навантаження" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+      {/* Workout List */}
+      {workouts.length > 0 ? (
+        <div className="space-y-2">
+          {workouts.map((w, i) => (
+            <div key={i} className="glass-card-sm p-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🏋️</span>
+                <div>
+                  <div className="text-sm font-medium text-textMain">{w.sport_name}</div>
+                  <div className="text-xs text-textDim">{w.start_time} · {w.duration_min} хв</div>
+                </div>
+              </div>
+              <div className="text-right">
+                {w.strain != null && (
+                  <div className="text-sm font-semibold text-accent">{w.strain}</div>
+                )}
+                <div className="text-xs text-textDim">{w.calories} ккал</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-4">
+          <span className="text-2xl mb-2 block">🏃</span>
+          <p className="text-textDim text-sm">Сьогодні тренувань немає</p>
+        </div>
+      )}
+    </Card>
   );
 }

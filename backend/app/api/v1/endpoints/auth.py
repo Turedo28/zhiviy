@@ -148,7 +148,10 @@ async def whoop_oauth_callback(
 
     try:
         # State format: "user_id_randomhex"
-        user_id = int(state.split("_")[0])
+        parts = state.split("_")
+        if len(parts) < 2:
+            raise HTTPException(status_code=400, detail="Invalid state parameter")
+        user_id = int(parts[0])
         stmt = select(User).where(User.id == user_id)
         result = await db.execute(stmt)
         user = result.scalar_one_or_none()

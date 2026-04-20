@@ -9,6 +9,7 @@ interface ProgressBarProps {
   label?: string;
   unit?: string;
   showPercentage?: boolean;
+  decimals?: number;
 }
 
 export default function ProgressBar({
@@ -17,9 +18,11 @@ export default function ProgressBar({
   label,
   unit = '',
   showPercentage = true,
+  decimals,
 }: ProgressBarProps) {
   const percentage = Math.min((current / target) * 100, 100);
   const color = getCalColor(current, target);
+  const fmt = (v: number) => decimals != null ? v.toFixed(decimals) : String(Math.round(v));
 
   return (
     <div className="w-full">
@@ -27,7 +30,7 @@ export default function ProgressBar({
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm text-textSec">{label}</span>
           <span className="text-sm font-semibold text-text">
-            {Math.round(current)} / {Math.round(target)} {unit}
+            {fmt(current)} / {fmt(target)} {unit}
           </span>
         </div>
       )}

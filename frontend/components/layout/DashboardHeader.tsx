@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { logout } from '@/lib/auth';
 
 interface DashboardHeaderProps {
@@ -20,6 +21,7 @@ export default function DashboardHeader({
   activeTab,
   onTabChange,
 }: DashboardHeaderProps) {
+  const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
 
   const handleLogout = () => {
@@ -51,11 +53,13 @@ export default function DashboardHeader({
             {showMenu && (
               <div className="absolute right-0 top-14 glass-card rounded-card p-2 w-48">
                 <button
+                  onClick={() => { setShowMenu(false); router.push('/settings'); }}
                   className="w-full text-left px-4 py-2 text-sm text-text hover:bg-accentBg rounded-sm transition"
                 >
                   Профіль
                 </button>
                 <button
+                  onClick={() => { setShowMenu(false); router.push('/settings'); }}
                   className="w-full text-left px-4 py-2 text-sm text-text hover:bg-accentBg rounded-sm transition"
                 >
                   Налаштування

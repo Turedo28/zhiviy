@@ -19,5 +19,12 @@ class BotConfig:
     API_BASE_URL = os.getenv("API_BASE_URL", "http://healthtrack_backend:8000/api")
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
+    def __post_init__(self):
+        if not self.TELEGRAM_BOT_TOKEN:
+            raise ValueError("TELEGRAM_BOT_TOKEN is required")
+
 
 bot_config = BotConfig()
+
+if not bot_config.TELEGRAM_BOT_TOKEN:
+    raise RuntimeError("TELEGRAM_BOT_TOKEN environment variable is not set")

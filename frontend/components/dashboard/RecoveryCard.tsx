@@ -61,15 +61,16 @@ export default function RecoveryCard({ score, recommendation, level }: RecoveryD
               <div className="text-xs text-textSec">зі 100</div>
             </div>
           </div>
-        <div
-          className="px-4 py-1 rounded-sm text-sm font-semibold"
-          style={{
-            backgroundColor: `${colors[level]}20`,
-            color: colors[level],
-            border: `1px solid ${colors[level]}40`,
-          }}
-        >
-          {levelLabels[level]}
+          <div
+            className="px-4 py-1 rounded-sm text-sm font-semibold"
+            style={{
+              backgroundColor: `${colors[level]}20`,
+              color: colors[level],
+              border: `1px solid ${colors[level]}40`,
+            }}
+          >
+            {levelLabels[level]}
+          </div>
         </div>
       </Tooltip>
 

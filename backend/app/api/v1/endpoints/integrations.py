@@ -199,35 +199,6 @@ async def disconnect_whoop(
     return {"detail": "WHOOP disconnected successfully"}
 
 
-@router.get("/whoop/sync-demo")
-async def whoop_sync_demo(
-    telegram_id: int = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """Demo: sync WHOOP data for a user by telegram_id (shows errors)."""
-    if telegram_id is None:
-        raise HTTPException(status_code=400, detail="telegram_id is required")
-    stmt = select(User).where(User.telegram_id == telegram_id)
-    result = await db.execute(stmt)
-    user = result.scalar_one_or_none()
-    if not user:
-        return {"error": "User not found"}
-
-    stmt = select(WhoopToken).where(WhoopToken.user_id == user.id)
-    result = await db.execute(stmt)
-    whoop_token = result.scalar_one_or_none()
-    if not whoop_token:
-        return {"error": "WHOOP not connected"}
-
-    try:
-        access_token = await get_valid_token(whoop_token, db)
-        counts = await sync_whoop_data(user.id, access_token, db, days_back=30)
-        return {"status": "success", "synced": counts}
-    except Exception as e:
-        import traceback
-        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
-
-
 @router.get("/whoop/debug")
 async def whoop_debug(
     current_user: User = Depends(get_current_user),

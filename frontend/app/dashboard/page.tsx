@@ -9,21 +9,15 @@ import NutritionCard from '@/components/dashboard/NutritionCard';
 import WaterCard from '@/components/dashboard/WaterCard';
 import SleepCard from '@/components/dashboard/SleepCard';
 import RecoveryCard from '@/components/dashboard/RecoveryCard';
+import TrainingPanel from '@/components/dashboard/TrainingPanel';
 import VitalsGrid from '@/components/dashboard/VitalsGrid';
 import SleepDetail from '@/components/dashboard/SleepDetail';
 import TrendsView from '@/components/dashboard/TrendsView';
 import { getAuthToken } from '@/lib/auth';
-import {
-  mockWater,
-  mockWeeklyData,
-  mockAverageMacros,
-} from '@/lib/mockData';
 
 const TABS = ['Сьогодні', 'Показники', 'Тренди'];
 
-// Fallback for demo mode when no JWT token
-const DEMO_TELEGRAM_ID = 470208930;
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 interface MealData {
   id: number;
@@ -57,6 +51,8 @@ interface SleepData {
   rem_hours: number;
   light_hours: number;
   awake_hours: number;
+  bed_time: string | null;
+  wake_time: string | null;
 }
 
 interface RecoveryData {
@@ -87,12 +83,28 @@ interface NutritionPlanData {
   recommendations: NutritionRecommendation[];
 }
 
+interface WaterData {
+  consumed_ml: number;
+  target_ml: number;
+  percentage: number;
+}
+
+interface WorkoutData {
+  sport_name: string;
+  duration_min: number;
+  strain: number | null;
+  calories: number;
+  start_time: string;
+}
+
 interface DashboardData {
   date: string;
   user_name: string;
   nutrition: NutritionData;
   sleep: SleepData | null;
   recovery: RecoveryData | null;
+  water: WaterData | null;
+  workouts: WorkoutData[] | null;
   whoop_connected: boolean;
   strain: number | null;
   nutrition_plan: NutritionPlanData | null;
@@ -143,17 +155,14 @@ function Dashboard() {
       const token = getAuthToken();
       let res;
 
-      if (token) {
-        // Authenticated — use real JWT endpoint
-        res = await fetch(`${API_URL}/dashboard/today`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      if (!token) {
+        setIsLoading(false);
+        return;
       }
 
-      // Fallback to demo endpoint
-      if (!res || !res.ok) {
-        res = await fetch(`${API_URL}/dashboard/today/demo?telegram_id=${DEMO_TELEGRAM_ID}`);
-      }
+      res = await fetch(`${API_URL}/dashboard/today`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (res.ok) {
         const data = await res.json();
@@ -350,14 +359,23 @@ function Dashboard() {
               )}
             </div>
 
+            {/* Training Panel — only show if WHOOP connected */}
+            {hasWhoop && (
+              <TrainingPanel
+                workouts={Array.isArray(dashData?.workouts) ? dashData.workouts : (dashData?.workouts?.workouts ?? [])}
+                dayStrain={dashData?.strain ?? null}
+                caloriesBurned={dashData?.nutrition_plan?.calories_burned ?? 0}
+              />
+            )}
+
             {/* Bottom Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Water - spans 2 columns */}
               <div className="lg:col-span-2">
                 <WaterCard
-                  consumed={mockWater.consumed}
-                  target={mockWater.target}
-                  unit={mockWater.unit}
+                  consumed={dashData?.water?.consumed_ml ?? 0}
+                  target={dashData?.water?.target_ml ?? 2500}
+                  unit="мл"
                 />
               </div>
 
@@ -419,6 +437,8 @@ function Dashboard() {
               hours: dashData.sleep!.hours,
               score: dashData.sleep!.score ?? 0,
               efficiency: dashData.sleep!.efficiency ?? 0,
+              bedTime: dashData.sleep!.bed_time ?? undefined,
+              wakeTime: dashData.sleep!.wake_time ?? undefined,
               stages: {
                 deep: dashData.sleep!.deep_hours,
                 rem: dashData.sleep!.rem_hours,
@@ -496,7 +516,7 @@ function Dashboard() {
 
       case 'Тренди':
         return (
-          <TrendsView data={mockWeeklyData} averageMacros={mockAverageMacros} />
+          <TrendsView />
         );
 
       default:
