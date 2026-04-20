@@ -80,8 +80,8 @@ async def _scheduler_loop():
     First run happens 60 seconds after startup (let the app fully boot),
     then repeats every interval.
     """
-    # Wait a bit after startup before first sync
-    await asyncio.sleep(60)
+    # Short delay to let the app fully initialize
+    await asyncio.sleep(5)
 
     while True:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
