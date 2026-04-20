@@ -170,7 +170,9 @@ async def add_water_bot(
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        user = User(telegram_id=telegram_id, language="uk")
+        db.add(user)
+        await db.flush()
 
     log = WaterLog(user_id=user.id, amount_ml=body.amount_ml)
     db.add(log)

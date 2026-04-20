@@ -94,9 +94,15 @@ async def refresh_whoop_token(refresh_token: str) -> Dict[str, Any]:
 
 
 async def get_valid_token(whoop_token: WhoopToken, db: AsyncSession) -> str:
-    """Get valid access token, refreshing if expired."""
-    if whoop_token.expires_at and whoop_token.expires_at < datetime.now(timezone.utc):
-        logger.info("WHOOP token expired, refreshing...")
+    """Get valid access token, refreshing if expired or expiry unknown."""
+    needs_refresh = (
+        not whoop_token.expires_at
+        or whoop_token.expires_at < datetime.now(timezone.utc)
+    )
+    if needs_refresh:
+        if not whoop_token.refresh_token:
+            raise ValueError("Cannot refresh WHOOP token: refresh_token missing")
+        logger.info("WHOOP token expired or unknown expiry, refreshing...")
         new_tokens = await refresh_whoop_token(whoop_token.refresh_token)
         whoop_token.access_token = new_tokens["access_token"]
         whoop_token.refresh_token = new_tokens["refresh_token"]
