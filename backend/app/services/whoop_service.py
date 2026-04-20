@@ -319,7 +319,7 @@ async def sync_whoop_data(
             whoop_id = c.get("id")
             if not whoop_id:
                 continue
-            whoop_id = str(whoop_id)
+            whoop_id = int(whoop_id)
             score_data = c.get("score", {}) or {}
             values = dict(
                 user_id=user_id,
