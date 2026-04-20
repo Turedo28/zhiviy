@@ -159,6 +159,36 @@ async def delete_water_log(
 
 # --- Bot endpoints (by telegram_id, no JWT) ---
 
+@router.get("/today/bot/{telegram_id}")
+async def get_water_today_bot(
+    telegram_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get today's water summary for Telegram bot (by telegram_id)."""
+    stmt = select(User).where(User.telegram_id == telegram_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if not user:
+        return {"consumed_ml": 0, "target_ml": 2500, "percentage": 0}
+
+    today_start, today_end = _get_today_range()
+    stmt = select(func.sum(WaterLog.amount_ml)).where(
+        and_(
+            WaterLog.user_id == user.id,
+            WaterLog.created_at >= today_start,
+            WaterLog.created_at <= today_end,
+        )
+    )
+    result = await db.execute(stmt)
+    total = int(result.scalar() or 0)
+    target = _calculate_water_target(user)
+    return {
+        "consumed_ml": total,
+        "target_ml": target,
+        "percentage": min(100, round(total / target * 100)) if target > 0 else 0,
+    }
+
+
 @router.post("/bot/{telegram_id}", status_code=201)
 async def add_water_bot(
     telegram_id: int,

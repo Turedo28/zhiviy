@@ -5,8 +5,9 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import bot_config
-from bot.handlers import start, meals, stats, settings
+from bot.handlers import start, meals, stats, settings, water
 from bot.services.sync_queue import retry_loop
+from bot.services.reminders import reminder_loop
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,11 +24,13 @@ async def main():
     # Register routers
     dp.include_router(start.router)
     dp.include_router(meals.router)
+    dp.include_router(water.router)
     dp.include_router(stats.router)
     dp.include_router(settings.router)
 
-    # Start background retry loop for failed meal syncs
+    # Background tasks
     asyncio.create_task(retry_loop())
+    asyncio.create_task(reminder_loop(bot))
 
     retry_count = 0
     while True:

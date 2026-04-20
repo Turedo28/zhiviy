@@ -5,6 +5,7 @@ from aiogram.filters import Command
 from bot.i18n import get_message
 from bot.keyboards.main_menu import get_language_choice_keyboard, get_main_menu_keyboard
 from bot.config import bot_config
+from bot.services.reminders import register_user
 
 router = Router()
 
@@ -15,8 +16,9 @@ async def cmd_start(message: Message):
     user_id = message.from_user.id
     first_name = message.from_user.first_name
 
-    welcome_text = f"{get_message('welcome', 'uk')}\n\n{first_name}!"
+    register_user(user_id)
 
+    welcome_text = f"{get_message('welcome', 'uk')}\n\n{first_name}!"
     keyboard = get_language_choice_keyboard()
     await message.answer(welcome_text, reply_markup=keyboard)
 

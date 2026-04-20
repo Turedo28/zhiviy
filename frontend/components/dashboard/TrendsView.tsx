@@ -7,7 +7,6 @@ import WeeklyChart from '@/components/ui/WeeklyChart';
 import { getAuthToken } from '@/lib/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
-const DEMO_TELEGRAM_ID = 470208930;
 
 interface DataPoint {
   day: string;
@@ -42,17 +41,11 @@ export default function TrendsView() {
     setIsLoading(true);
     try {
       const token = getAuthToken();
-      let res;
+      if (!token) { setIsLoading(false); return; }
 
-      if (token) {
-        res = await fetch(`${API_URL}/stats/weekly?days=${days}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-
-      if (!res || !res.ok) {
-        res = await fetch(`${API_URL}/stats/weekly/demo?telegram_id=${DEMO_TELEGRAM_ID}&days=${days}`);
-      }
+      const res = await fetch(`${API_URL}/stats/weekly?days=${days}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (res.ok) {
         const json = await res.json();

@@ -7,7 +7,7 @@ def get_main_menu_keyboard(language: str = "uk") -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=get_message("add_meal", language))],
-            [KeyboardButton(text=get_message("statistics", language))],
+            [KeyboardButton(text=get_message("statistics", language)), KeyboardButton(text="💧 Вода")],
             [KeyboardButton(text=get_message("settings", language))],
         ],
         resize_keyboard=True,
